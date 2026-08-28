@@ -41,9 +41,11 @@ jobs:
       - name: Restore V2.2 source archive
         shell: powershell
         run: |
-          $b64 = Get-Content 'source/Desktop-Imposer-Pro-V2.2-Performance.zip.b64' -Raw
-          [IO.File]::WriteAllBytes('source-v2.2.zip', [Convert]::FromBase64String($b64.Trim()))
-          Expand-Archive -Path 'source-v2.2.zip' -DestinationPath 'build-src' -Force
+          $archive = 'source/Desktop-Imposer-Pro-V2.2-Performance.zip'
+          if (-not (Test-Path $archive)) {
+            throw 'Missing source/Desktop-Imposer-Pro-V2.2-Performance.zip. Upload the V2.2 source ZIP to the source folder first.'
+          }
+          Expand-Archive -Path $archive -DestinationPath 'build-src' -Force
           $root = Resolve-Path 'build-src/Desktop-Imposer-Pro-V2.2'
           "APP_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
 
@@ -69,6 +71,22 @@ jobs:
           New-Item -ItemType Directory -Path release -Force | Out-Null
           python -m PyInstaller --noconfirm --clean DesktopImposer.spec
           if (-not (Test-Path 'dist/DesktopImposerPro/DesktopImposerPro.exe')) { throw 'DesktopImposerPro.exe not generated' }
+
+      - name: Packaging self-test
+        shell: powershell
+        run: |
+          Set-Location $env:APP_ROOT
+          $exe = Resolve-Path 'dist/DesktopImposerPro/DesktopImposerPro.exe'
+          $selfTest = Join-Path $env:TEMP 'desktop-imposer-selftest.json'
+          Remove-Item $selfTest -ErrorAction SilentlyContinue
+          $env:QT_QPA_PLATFORM = 'offscreen'
+          $env:DESKTOP_IMPOSER_SELFTEST_FILE = $selfTest
+          $p = Start-Process -FilePath $exe -ArgumentList '--packaging-self-test' -Wait -PassThru
+          Remove-Item Env:DESKTOP_IMPOSER_SELFTEST_FILE -ErrorAction SilentlyContinue
+          Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
+          if ($p.ExitCode -ne 0 -or -not (Test-Path $selfTest)) { throw 'Packaged application self-test failed' }
+          $data = Get-Content $selfTest -Raw | ConvertFrom-Json
+          if (-not $data.ok) { throw 'Qt/PDF packaged self-test returned failure' }
 
       - name: Pack NSIS Setup
         shell: powershell

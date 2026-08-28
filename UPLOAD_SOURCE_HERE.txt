@@ -1,0 +1,1 @@
+Upload the file Desktop-Imposer-Pro-V2.2-Performance.zip into the source/ folder in this repository. The Windows build workflow will then run automatically and produce Desktop-Imposer-Pro-Setup-x64.exe as an Actions artifact.

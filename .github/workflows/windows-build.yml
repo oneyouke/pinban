@@ -52,15 +52,17 @@ jobs:
       - name: Apply V2.2.1 UI and import patch
         shell: powershell
         run: |
-          python patches/apply_v221.py
-          $version = python -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_VERSION)"
+          python -B patches/apply_v221.py
+          Remove-Item -Recurse -Force (Join-Path $env:APP_ROOT '__pycache__') -ErrorAction SilentlyContinue
+          $version = python -B -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_VERSION)"
           if ($version.Trim() -ne '2.2.1') { throw "V2.2.1 patch did not apply: $version" }
 
       - name: Apply V2.2.2 encoding and imposition patch
         shell: powershell
         run: |
-          python patches/apply_v222.py
-          $version = python -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_VERSION)"
+          python -B patches/apply_v222.py
+          Remove-Item -Recurse -Force (Join-Path $env:APP_ROOT '__pycache__') -ErrorAction SilentlyContinue
+          $version = python -B -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_VERSION)"
           if ($version.Trim() -ne '2.2.2') { throw "V2.2.2 patch did not apply: $version" }
           $bytes = [System.IO.File]::ReadAllBytes((Join-Path $env:APP_ROOT 'EULA_NSIS.txt'))
           if ($bytes.Length -lt 2 -or $bytes[0] -ne 255 -or $bytes[1] -ne 254) { throw 'EULA_NSIS.txt is not UTF-16LE with BOM' }
@@ -68,10 +70,11 @@ jobs:
       - name: Apply V2.3 prepress and imposition feature patch
         shell: powershell
         run: |
-          python patches/apply_v230.py
-          $version = python -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_VERSION)"
+          python -B patches/apply_v230.py
+          Remove-Item -Recurse -Force (Join-Path $env:APP_ROOT '__pycache__') -ErrorAction SilentlyContinue
+          $version = python -B -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_VERSION)"
           if ($version.Trim() -ne '2.3.0') { throw "V2.3 patch did not apply: $version" }
-          $name = python -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_NAME)"
+          $name = python -B -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_NAME)"
           if ($name.Trim() -ne 'Desktop Imposer Pro') { throw "Product name is not ASCII-safe: $name" }
 
       - name: Install build dependencies
@@ -95,9 +98,9 @@ jobs:
         shell: powershell
         run: |
           Set-Location $env:APP_ROOT
-          python -m compileall -q .
-          python test_engine.py
-          python install_smoke_test.py
+          python -B -m compileall -q .
+          python -B test_engine.py
+          python -B install_smoke_test.py
 
       - name: Build EXE with PyInstaller
         shell: powershell
@@ -105,7 +108,7 @@ jobs:
           Set-Location $env:APP_ROOT
           Remove-Item -Recurse -Force build,dist,release -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Path release -Force | Out-Null
-          python -m PyInstaller --noconfirm --clean DesktopImposer.spec
+          python -B -m PyInstaller --noconfirm --clean DesktopImposer.spec
           if (-not (Test-Path 'dist/DesktopImposerPro/DesktopImposerPro.exe')) { throw 'DesktopImposerPro.exe not generated' }
 
       - name: Packaging self-test
@@ -128,7 +131,7 @@ jobs:
         shell: powershell
         run: |
           Set-Location $env:APP_ROOT
-          $version = python -c "import product; print(product.APP_VERSION)"
+          $version = python -B -c "import product; print(product.APP_VERSION)"
           & $env:NSIS "/DAPP_VERSION=$version" "/DAPP_PUBLISHER=Desktop Imposer Pro" installer_nsis.nsi
           if ($LASTEXITCODE -ne 0) { throw "NSIS failed with exit code $LASTEXITCODE" }
           $setup = Get-ChildItem 'release/DesktopImposerPro-*-Setup-x64.exe' | Sort-Object LastWriteTime -Descending | Select-Object -First 1

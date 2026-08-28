@@ -1,0 +1,101 @@
+name: Build Windows Installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'source/**'
+      - '.github/workflows/windows-build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: 'x64'
+          cache: 'pip'
+
+      - name: Install NSIS
+        shell: powershell
+        run: |
+          choco install nsis -y --no-progress
+          $nsis = @(
+            "$env:ProgramFiles\NSIS\makensis.exe",
+            "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $nsis) { throw 'NSIS makensis.exe not found' }
+          "NSIS=$nsis" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Restore V2.2 source archive
+        shell: powershell
+        run: |
+          $b64 = Get-Content 'source/Desktop-Imposer-Pro-V2.2-Performance.zip.b64' -Raw
+          [IO.File]::WriteAllBytes('source-v2.2.zip', [Convert]::FromBase64String($b64.Trim()))
+          Expand-Archive -Path 'source-v2.2.zip' -DestinationPath 'build-src' -Force
+          $root = Resolve-Path 'build-src/Desktop-Imposer-Pro-V2.2'
+          "APP_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Install build dependencies
+        shell: powershell
+        run: |
+          Set-Location $env:APP_ROOT
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements-build.txt
+
+      - name: Installation smoke test
+        shell: powershell
+        run: |
+          Set-Location $env:APP_ROOT
+          python -m compileall -q .
+          python install_smoke_test.py
+
+      - name: Build EXE with PyInstaller
+        shell: powershell
+        run: |
+          Set-Location $env:APP_ROOT
+          Remove-Item -Recurse -Force build,dist,release -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path release -Force | Out-Null
+          python -m PyInstaller --noconfirm --clean DesktopImposer.spec
+          if (-not (Test-Path 'dist/DesktopImposerPro/DesktopImposerPro.exe')) { throw 'DesktopImposerPro.exe not generated' }
+
+      - name: Pack NSIS Setup
+        shell: powershell
+        run: |
+          Set-Location $env:APP_ROOT
+          $version = python -c "import product; print(product.APP_VERSION)"
+          & $env:NSIS "/DAPP_VERSION=$version" "/DAPP_PUBLISHER=Desktop Imposer Pro" installer_nsis.nsi
+          if ($LASTEXITCODE -ne 0) { throw "NSIS failed with exit code $LASTEXITCODE" }
+          $setup = Get-ChildItem 'release/DesktopImposerPro-*-Setup-x64.exe' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $setup) { throw 'Setup-x64.exe not generated' }
+          Copy-Item $setup.FullName 'release/Desktop-Imposer-Pro-Setup-x64.exe' -Force
+          Get-FileHash 'release/Desktop-Imposer-Pro-Setup-x64.exe' -Algorithm SHA256 | Format-List | Out-File 'release/SHA256.txt'
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Desktop-Imposer-Pro-Windows-x64
+          path: |
+            ${{ env.APP_ROOT }}/release/Desktop-Imposer-Pro-Setup-x64.exe
+            ${{ env.APP_ROOT }}/release/SHA256.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload portable application
+        uses: actions/upload-artifact@v4
+        with:
+          name: Desktop-Imposer-Pro-Portable-x64
+          path: ${{ env.APP_ROOT }}/dist/DesktopImposerPro/**
+          if-no-files-found: error
+          retention-days: 30

@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'source/**'
+      - 'patches/**'
       - '.github/workflows/windows-build.yml'
 
 permissions:
@@ -48,6 +49,13 @@ jobs:
           $root = Resolve-Path 'build-src/Desktop-Imposer-Pro-V2.2'
           "APP_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
 
+      - name: Apply V2.2.1 UI and import patch
+        shell: powershell
+        run: |
+          python patches/apply_v221.py
+          $version = python -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_VERSION)"
+          if ($version.Trim() -ne '2.2.1') { throw "V2.2.1 patch did not apply: $version" }
+
       - name: Install build dependencies
         shell: powershell
         run: |
@@ -70,6 +78,7 @@ jobs:
         run: |
           Set-Location $env:APP_ROOT
           python -m compileall -q .
+          python test_engine.py
           python install_smoke_test.py
 
       - name: Build EXE with PyInstaller
@@ -112,7 +121,7 @@ jobs:
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: Desktop-Imposer-Pro-Windows-x64
+          name: Desktop-Imposer-Pro-V2.2.1-Windows-x64
           path: |
             ${{ env.APP_ROOT }}/release/Desktop-Imposer-Pro-Setup-x64.exe
             ${{ env.APP_ROOT }}/release/SHA256.txt
@@ -122,7 +131,7 @@ jobs:
       - name: Upload portable application
         uses: actions/upload-artifact@v4
         with:
-          name: Desktop-Imposer-Pro-Portable-x64
+          name: Desktop-Imposer-Pro-V2.2.1-Portable-x64
           path: ${{ env.APP_ROOT }}/dist/DesktopImposerPro/**
           if-no-files-found: error
           retention-days: 30

@@ -79,7 +79,10 @@ class PageItem(QGraphicsRectItem):
 class ImpositionCanvas(QGraphicsView):
     def __init__(self):
         scene = QGraphicsScene()
-        super().__init__(scene)
+        super().__init__()
+        # Explicitly bind the scene. This is more robust than relying on the
+        # overloaded QGraphicsView(scene) constructor across PySide6 versions.
+        self.setScene(scene)
         self.undo_stack = QUndoStack(self)
         self.snap_mm = 1.0
         self.sheet_w = 650.0

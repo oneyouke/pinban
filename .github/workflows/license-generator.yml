@@ -1,0 +1,58 @@
+name: Build License Generator
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/license_generator_gui.py'
+      - '.github/workflows/license-generator.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-license-generator:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: 'x64'
+
+      - name: Install dependencies
+        shell: powershell
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install PySide6 cryptography pyinstaller
+
+      - name: Syntax and signature smoke test
+        shell: powershell
+        run: |
+          python -m py_compile tools/license_generator_gui.py
+          python -c "import sys; sys.path.insert(0,'tools'); import license_generator_gui as g; from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey; from cryptography.hazmat.primitives import serialization; k=Ed25519PrivateKey.generate(); p={'schema_version':1,'product_id':g.PRODUCT_ID}; pem=k.private_bytes(serialization.Encoding.PEM,serialization.PrivateFormat.PKCS8,serialization.NoEncryption()); assert g.sign_payload(p,pem)"
+
+      - name: Build Windows EXE
+        shell: powershell
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name Desktop-Imposer-License-Generator tools/license_generator_gui.py
+          if (-not (Test-Path 'dist/Desktop-Imposer-License-Generator.exe')) { throw 'License generator EXE not generated' }
+          New-Item -ItemType Directory -Path release -Force | Out-Null
+          Copy-Item 'dist/Desktop-Imposer-License-Generator.exe' 'release/Desktop-Imposer-License-Generator.exe' -Force
+          Get-FileHash 'release/Desktop-Imposer-License-Generator.exe' -Algorithm SHA256 | Format-List | Out-File 'release/SHA256.txt'
+
+      - name: Upload license generator
+        uses: actions/upload-artifact@v4
+        with:
+          name: Desktop-Imposer-License-Generator-Windows-x64
+          path: |
+            release/Desktop-Imposer-License-Generator.exe
+            release/SHA256.txt
+          if-no-files-found: error
+          retention-days: 30

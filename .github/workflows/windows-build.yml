@@ -47,7 +47,7 @@ jobs:
           $root = Resolve-Path 'build-src/Desktop-Imposer-Pro-V2.2'
           "APP_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Apply release patches through V2.3.7
+      - name: Apply release patches through V2.4.0
         shell: powershell
         run: |
           python -B patches/apply_v221.py
@@ -60,10 +60,11 @@ jobs:
           python -B patches/apply_v235.py
           python -B patches/apply_v236.py
           python -B patches/apply_v237.py
+          python -B patches/apply_v240.py
           Remove-Item -Recurse -Force (Join-Path $env:APP_ROOT '__pycache__') -ErrorAction SilentlyContinue
 
           $version = python -B -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_VERSION)"
-          if ($version.Trim() -ne '2.3.7') { throw "Expected V2.3.7, got $version" }
+          if ($version.Trim() -ne '2.4.0') { throw "Expected V2.4.0, got $version" }
 
           $service = Get-Content (Join-Path $env:APP_ROOT 'production_service.py') -Raw
           if ($service -match 'tmp\.open\("rb"\)') { throw 'Unsafe read-only fsync implementation is still present' }
@@ -74,6 +75,8 @@ jobs:
 
           $pub = Get-Content (Join-Path $env:APP_ROOT 'vendor_public_key.pem') -Raw
           if ($pub -notmatch 'BEGIN PUBLIC KEY') { throw 'V2.3.7 licensing public key missing' }
+
+          if (-not (Test-Path (Join-Path $env:APP_ROOT 'production_math.py'))) { throw 'V2.4 production math core missing' }
 
       - name: Install build dependencies
         shell: powershell
@@ -99,8 +102,9 @@ jobs:
           $env:PYTHONIOENCODING = 'utf-8'
           $env:PYTHONUTF8 = '1'
           python -B -m compileall -q .
-          python -B -c "import product; assert product.APP_VERSION == '2.3.7', product.APP_VERSION"
+          python -B -c "import product; assert product.APP_VERSION == '2.4.0', product.APP_VERSION"
           python -B -c "import prepress_center; assert hasattr(prepress_center, 'RulerWidget'); import enhanced_preflight; assert hasattr(enhanced_preflight, 'scan_pdf')"
+          python -B test_v240_core.py
           python -B test_engine.py
           python -B test_export_v233.py
           python -B install_smoke_test.py
@@ -128,27 +132,27 @@ jobs:
           Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
           if ($p.ExitCode -ne 0 -or -not (Test-Path $selfTest)) { throw 'Packaged application self-test failed' }
           $data = Get-Content $selfTest -Raw | ConvertFrom-Json
-          if (-not $data.ok -or $data.version -ne '2.3.7') { throw 'Qt/PDF packaged self-test returned failure or wrong version' }
+          if (-not $data.ok -or $data.version -ne '2.4.0') { throw 'Qt/PDF packaged self-test returned failure or wrong version' }
 
       - name: Pack NSIS Setup
         shell: powershell
         run: |
           Set-Location $env:APP_ROOT
           $version = python -B -c "import product; print(product.APP_VERSION)"
-          if ($version.Trim() -ne '2.3.7') { throw "Refusing to package wrong version: $version" }
+          if ($version.Trim() -ne '2.4.0') { throw "Refusing to package wrong version: $version" }
           & $env:NSIS "/DAPP_VERSION=$version" "/DAPP_PUBLISHER=Desktop Imposer Pro" installer_nsis.nsi
           if ($LASTEXITCODE -ne 0) { throw "NSIS failed with exit code $LASTEXITCODE" }
           $setup = Get-ChildItem 'release/DesktopImposerPro-*-Setup-x64.exe' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           if (-not $setup) { throw 'Setup-x64.exe not generated' }
-          Copy-Item $setup.FullName 'release/Desktop-Imposer-Pro-V2.3.7-Setup-x64.exe' -Force
-          Get-FileHash 'release/Desktop-Imposer-Pro-V2.3.7-Setup-x64.exe' -Algorithm SHA256 | Format-List | Out-File 'release/SHA256.txt'
+          Copy-Item $setup.FullName 'release/Desktop-Imposer-Pro-V2.4.0-Setup-x64.exe' -Force
+          Get-FileHash 'release/Desktop-Imposer-Pro-V2.4.0-Setup-x64.exe' -Algorithm SHA256 | Format-List | Out-File 'release/SHA256.txt'
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: Desktop-Imposer-Pro-V2.3.7-Windows-x64
+          name: Desktop-Imposer-Pro-V2.4.0-Windows-x64
           path: |
-            ${{ env.APP_ROOT }}/release/Desktop-Imposer-Pro-V2.3.7-Setup-x64.exe
+            ${{ env.APP_ROOT }}/release/Desktop-Imposer-Pro-V2.4.0-Setup-x64.exe
             ${{ env.APP_ROOT }}/release/SHA256.txt
           if-no-files-found: error
           retention-days: 30
@@ -156,7 +160,7 @@ jobs:
       - name: Upload portable application
         uses: actions/upload-artifact@v4
         with:
-          name: Desktop-Imposer-Pro-V2.3.7-Portable-x64
+          name: Desktop-Imposer-Pro-V2.4.0-Portable-x64
           path: ${{ env.APP_ROOT }}/dist/DesktopImposerPro/**
           if-no-files-found: error
           retention-days: 30

@@ -42,9 +42,7 @@ jobs:
         shell: powershell
         run: |
           $archive = 'source/Desktop-Imposer-Pro-V2.2-Performance.zip'
-          if (-not (Test-Path $archive)) {
-            throw 'Missing source/Desktop-Imposer-Pro-V2.2-Performance.zip. Upload the V2.2 source ZIP to the source folder first.'
-          }
+          if (-not (Test-Path $archive)) { throw 'Missing source archive' }
           Expand-Archive -Path $archive -DestinationPath 'build-src' -Force
           $root = Resolve-Path 'build-src/Desktop-Imposer-Pro-V2.2'
           "APP_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
@@ -98,6 +96,16 @@ jobs:
           if ($center -notmatch '智能印前检查') { throw 'Enhanced preflight UI was not added' }
           if (-not (Test-Path (Join-Path $env:APP_ROOT 'enhanced_preflight.py'))) { throw 'enhanced_preflight.py missing' }
 
+      - name: Apply V2.3.3 PDF export reliability patch
+        shell: powershell
+        run: |
+          python -B patches/apply_v233.py
+          Remove-Item -Recurse -Force (Join-Path $env:APP_ROOT '__pycache__') -ErrorAction SilentlyContinue
+          $version = python -B -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_VERSION)"
+          if ($version.Trim() -ne '2.3.3') { throw "V2.3.3 patch did not apply: $version" }
+          $service = Get-Content (Join-Path $env:APP_ROOT 'production_service.py') -Raw
+          if ($service -notmatch '_commit_pdf') { throw 'Robust PDF commit helper missing' }
+
       - name: Install build dependencies
         shell: powershell
         run: |
@@ -115,13 +123,14 @@ jobs:
           $text = $text.Replace('print("Qt", QT_VERSION_STR)', 'print("Qt", QLibraryInfo.version().toString())')
           Set-Content -Path $path -Value $text -Encoding UTF8
 
-      - name: Installation smoke test
+      - name: Installation and PDF export smoke tests
         shell: powershell
         run: |
           Set-Location $env:APP_ROOT
           python -B -m compileall -q .
           python -B -c "import prepress_center; assert hasattr(prepress_center, 'RulerWidget'); import enhanced_preflight; assert hasattr(enhanced_preflight, 'scan_pdf')"
           python -B test_engine.py
+          python -B test_export_v233.py
           python -B install_smoke_test.py
 
       - name: Build EXE with PyInstaller
@@ -164,7 +173,7 @@ jobs:
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: Desktop-Imposer-Pro-V2.3.2-Windows-x64
+          name: Desktop-Imposer-Pro-V2.3.3-Windows-x64
           path: |
             ${{ env.APP_ROOT }}/release/Desktop-Imposer-Pro-Setup-x64.exe
             ${{ env.APP_ROOT }}/release/SHA256.txt
@@ -174,7 +183,7 @@ jobs:
       - name: Upload portable application
         uses: actions/upload-artifact@v4
         with:
-          name: Desktop-Imposer-Pro-V2.3.2-Portable-x64
+          name: Desktop-Imposer-Pro-V2.3.3-Portable-x64
           path: ${{ env.APP_ROOT }}/dist/DesktopImposerPro/**
           if-no-files-found: error
           retention-days: 30

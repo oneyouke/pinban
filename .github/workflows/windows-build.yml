@@ -84,7 +84,8 @@ jobs:
           Remove-Item -Recurse -Force (Join-Path $env:APP_ROOT '__pycache__') -ErrorAction SilentlyContinue
           $version = python -B -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_VERSION)"
           if ($version.Trim() -ne '2.3.1') { throw "V2.3.1 patch did not apply: $version" }
-          python -B -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import prepress_center; assert hasattr(prepress_center, 'RulerWidget')"
+          $center = Get-Content (Join-Path $env:APP_ROOT 'prepress_center.py') -Raw
+          if ($center -notmatch 'class RulerWidget') { throw 'RulerWidget source was not added' }
 
       - name: Install build dependencies
         shell: powershell
@@ -108,6 +109,7 @@ jobs:
         run: |
           Set-Location $env:APP_ROOT
           python -B -m compileall -q .
+          python -B -c "import prepress_center; assert hasattr(prepress_center, 'RulerWidget')"
           python -B test_engine.py
           python -B install_smoke_test.py
 

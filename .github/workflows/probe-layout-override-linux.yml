@@ -1,0 +1,54 @@
+name: Probe layout override contract Linux
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-layout-override-linux.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract baseline source
+        run: |
+          mkdir -p probe-src
+          unzip -q source/Desktop-Imposer-Pro-V2.2-Performance.zip -d probe-src
+          test -f probe-src/Desktop-Imposer-Pro-V2.2/imposition.py
+      - name: Extract layout override contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          root=Path('probe-src/Desktop-Imposer-Pro-V2.2')
+          out=[]
+          for name in ('imposition.py','production_service.py'):
+              p=root/name
+              lines=p.read_text(encoding='utf-8').splitlines()
+              out.append(f'===== {name} =====')
+              hits=[i for i,line in enumerate(lines) if 'layout_override' in line or 'manual_layout' in line]
+              if not hits:
+                  out.append('NO HITS')
+                  continue
+              shown=set()
+              for i in hits:
+                  lo=max(0,i-45); hi=min(len(lines),i+90)
+                  for j in range(lo,hi):
+                      if j not in shown:
+                          out.append(f'{j+1:04d}: {lines[j]}'); shown.add(j)
+                  out.append('-----')
+          text='\n'.join(out)
+          Path('layout-override-contract.txt').write_text(text,encoding='utf-8')
+          print(text)
+          PY
+      - name: Upload contract
+        uses: actions/upload-artifact@v4
+        with:
+          name: layout-override-contract
+          path: layout-override-contract.txt
+          if-no-files-found: error
+          retention-days: 7

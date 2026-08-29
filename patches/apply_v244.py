@@ -17,11 +17,19 @@ if 'from marks_panel import PrintMarksPanel' not in s:
         raise SystemExit('page canvas import marker missing')
     s = s.replace(marker, marker + 'from marks_panel import PrintMarksPanel\n', 1)
 
-if '"印刷标记"' not in s:
-    marker = '        tabs.addTab(PageCanvasWidget(self), "页面与画布")\n'
-    if marker not in s:
-        raise SystemExit('page canvas tab marker missing')
-    s = s.replace(marker, marker + '        tabs.addTab(PrintMarksPanel(self), "印刷标记")\n', 1)
+# Check the exact tab wiring, not merely whether the Chinese words appear elsewhere.
+page_tab = '        tabs.addTab(PageCanvasWidget(self), "页面与画布")\n'
+marks_tab = '        tabs.addTab(PrintMarksPanel(self), "印刷标记")\n'
+if marks_tab not in s:
+    if page_tab not in s:
+        # V2.4.6+ may already have instance-based wiring; accept that idempotently.
+        instance_page = '        tabs.addTab(self.page_canvas, "页面与画布")\n'
+        if instance_page in s and '        tabs.addTab(self.marks_panel, "印刷标记")\n' not in s:
+            s = s.replace(instance_page, instance_page + '        tabs.addTab(self.marks_panel, "印刷标记")\n', 1)
+        elif 'tabs.addTab(self.marks_panel, "印刷标记")' not in s:
+            raise SystemExit('page canvas tab marker missing')
+    else:
+        s = s.replace(page_tab, page_tab + marks_tab, 1)
 p.write_text(s, encoding='utf-8')
 
 for filename in ('product.py', 'pyproject.toml', 'installer_nsis.nsi'):

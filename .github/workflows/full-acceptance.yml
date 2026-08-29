@@ -7,6 +7,7 @@ on:
     paths:
       - 'patches/apply_v234.py'
       - 'patches/apply_v235.py'
+      - 'patches/apply_v236.py'
       - 'patches/full_acceptance_runner.py'
       - '.github/workflows/full-acceptance.yml'
 
@@ -44,17 +45,16 @@ jobs:
           python -B patches/apply_v233.py
           python -B patches/apply_v234.py
           python -B patches/apply_v235.py
+          python -B patches/apply_v236.py
           Remove-Item -Recurse -Force (Join-Path $root '__pycache__') -ErrorAction SilentlyContinue
           $version = python -B -c "import sys; sys.path.insert(0, r'$root'); import product; print(product.APP_VERSION)"
-          if ($version.Trim() -ne '2.3.5') { throw "V2.3.5 patch did not apply: $version" }
+          if ($version.Trim() -ne '2.3.6') { throw "V2.3.6 patch did not apply: $version" }
 
-      - name: Expose backup implementation for Windows handle diagnostics
+      - name: Expose storage implementation for Windows recovery diagnostics
         shell: powershell
         run: |
-          Write-Host '===== backup_restore.py ====='
-          Get-Content (Join-Path $env:APP_ROOT 'backup_restore.py') -Raw
-          Write-Host '===== test_v20.py ====='
-          Get-Content (Join-Path $env:APP_ROOT 'test_v20.py') -Raw
+          Write-Host '===== storage.py ====='
+          Get-Content (Join-Path $env:APP_ROOT 'storage.py') -Raw
 
       - name: Install build and test dependencies
         shell: powershell
@@ -82,13 +82,15 @@ jobs:
         run: |
           Set-Location $env:APP_ROOT
           $env:QT_QPA_PLATFORM = 'offscreen'
+          $env:PYTHONUTF8 = '1'
+          $env:PYTHONIOENCODING = 'utf-8'
           python -B test_full_acceptance.py
 
       - name: Upload full acceptance report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Desktop-Imposer-Pro-V2.3.5-Full-Acceptance-Report
+          name: Desktop-Imposer-Pro-V2.3.6-Full-Acceptance-Report
           path: |
             ${{ env.APP_ROOT }}/release/full-acceptance-report.json
             ${{ env.APP_ROOT }}/release/full-acceptance-report.md

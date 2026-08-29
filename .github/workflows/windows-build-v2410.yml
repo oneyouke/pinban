@@ -19,11 +19,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           architecture: 'x64'
+
       - name: Install NSIS
         shell: powershell
         run: |
@@ -31,46 +33,50 @@ jobs:
           $nsis = @("$env:ProgramFiles\NSIS\makensis.exe", "${env:ProgramFiles(x86)}\NSIS\makensis.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
           if (-not $nsis) { throw 'NSIS not found' }
           "NSIS=$nsis" | Out-File -FilePath $env:GITHUB_ENV -Append
+
       - name: Restore source
         shell: powershell
         run: |
           Expand-Archive -Path 'source/Desktop-Imposer-Pro-V2.2-Performance.zip' -DestinationPath 'build-src' -Force
           $root = Resolve-Path 'build-src/Desktop-Imposer-Pro-V2.2'
           "APP_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Install patch bootstrap dependencies
+        shell: powershell
+        run: |
+          python -m pip install --disable-pip-version-check cryptography
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to install cryptography bootstrap dependency' }
+
       - name: Apply patches through V2.4.10
         shell: powershell
         run: |
-          python -B patches/apply_v221.py
-          python -B patches/apply_v222.py
-          python -B patches/apply_v230.py
-          python -B patches/apply_v231.py
-          python -B patches/apply_v232.py
-          python -B patches/apply_v233.py
-          python -B patches/apply_v234.py
-          python -B patches/apply_v235.py
-          python -B patches/apply_v236.py
-          python -B patches/apply_v237.py
-          python -B patches/apply_v240.py
-          python -B patches/apply_v241.py
-          python -B patches/apply_v242.py
-          python -B patches/apply_v243.py
-          python -B patches/apply_v244.py
-          python -B patches/apply_v245.py
-          python -B patches/apply_v246.py
-          python -B patches/apply_v247.py
-          python -B patches/apply_v248.py
-          python -B patches/apply_v249.py
-          python -B patches/apply_v2410.py
+          $patches = @(
+            'patches/apply_v221.py','patches/apply_v222.py','patches/apply_v230.py','patches/apply_v231.py',
+            'patches/apply_v232.py','patches/apply_v233.py','patches/apply_v234.py','patches/apply_v235.py',
+            'patches/apply_v236.py','patches/apply_v237.py','patches/apply_v240.py','patches/apply_v241.py',
+            'patches/apply_v242.py','patches/apply_v243.py','patches/apply_v244.py','patches/apply_v245.py',
+            'patches/apply_v246.py','patches/apply_v247.py','patches/apply_v248.py','patches/apply_v249.py',
+            'patches/apply_v2410.py'
+          )
+          foreach ($patch in $patches) {
+            & python -B $patch
+            if ($LASTEXITCODE -ne 0) { throw "Patch failed: $patch" }
+          }
           $version = python -B -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_VERSION)"
+          if ($LASTEXITCODE -ne 0) { throw 'Version probe failed' }
           if ($version.Trim() -ne '2.4.10') { throw "Expected 2.4.10, got $version" }
           if (-not (Test-Path (Join-Path $env:APP_ROOT 'order_quote.py'))) { throw 'order_quote.py missing' }
           if (-not (Test-Path (Join-Path $env:APP_ROOT 'order_quote_panel.py'))) { throw 'order_quote_panel.py missing' }
+
       - name: Install dependencies
         shell: powershell
         run: |
           Set-Location $env:APP_ROOT
           python -m pip install --upgrade pip setuptools wheel
+          if ($LASTEXITCODE -ne 0) { throw 'pip bootstrap failed' }
           python -m pip install -r requirements-build.txt
+          if ($LASTEXITCODE -ne 0) { throw 'requirements install failed' }
+
       - name: Patch smoke-test compatibility
         shell: powershell
         run: |
@@ -80,6 +86,7 @@ jobs:
           $text = $text.Replace('from PySide6.QtCore import QT_VERSION_STR', 'from PySide6.QtCore import QLibraryInfo')
           $text = $text.Replace('print("Qt", QT_VERSION_STR)', 'print("Qt", QLibraryInfo.version().toString())')
           Set-Content -Path $path -Value $text -Encoding UTF8
+
       - name: Full regression, quote and export tests
         shell: powershell
         run: |
@@ -87,22 +94,20 @@ jobs:
           $env:PYTHONIOENCODING = 'utf-8'
           $env:PYTHONUTF8 = '1'
           $env:QT_QPA_PLATFORM = 'offscreen'
-          python -B -m compileall -q .
-          python -B -c "import product; assert product.APP_VERSION == '2.4.10'"
-          python -B test_v240_core.py
-          python -B test_v241_ui.py
-          python -B test_v242_ui.py
-          python -B test_v243_duplex.py
-          python -B test_v244_marks.py
-          python -B test_v245_production_gate.py
-          python -B test_v246_workspace.py
-          python -B test_v247_optimizer.py
-          python -B test_v248_resources.py
-          python -B test_v249_production.py
-          python -B test_v2410_quote.py
-          python -B test_engine.py
-          python -B test_export_v233.py
-          python -B install_smoke_test.py
+          $commands = @(
+            @('-B','-m','compileall','-q','.'),
+            @('-B','-c',"import product; assert product.APP_VERSION == '2.4.10'"),
+            @('-B','test_v240_core.py'), @('-B','test_v241_ui.py'), @('-B','test_v242_ui.py'),
+            @('-B','test_v243_duplex.py'), @('-B','test_v244_marks.py'), @('-B','test_v245_production_gate.py'),
+            @('-B','test_v246_workspace.py'), @('-B','test_v247_optimizer.py'), @('-B','test_v248_resources.py'),
+            @('-B','test_v249_production.py'), @('-B','test_v2410_quote.py'), @('-B','test_engine.py'),
+            @('-B','test_export_v233.py'), @('-B','install_smoke_test.py')
+          )
+          foreach ($argsList in $commands) {
+            & python @argsList
+            if ($LASTEXITCODE -ne 0) { throw "Python test failed: $($argsList -join ' ')" }
+          }
+
       - name: Build EXE
         shell: powershell
         run: |
@@ -110,7 +115,9 @@ jobs:
           Remove-Item -Recurse -Force build,dist,release -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Path release -Force | Out-Null
           python -B -m PyInstaller --noconfirm --clean DesktopImposer.spec
+          if ($LASTEXITCODE -ne 0) { throw 'PyInstaller failed' }
           if (-not (Test-Path 'dist/DesktopImposerPro/DesktopImposerPro.exe')) { throw 'EXE not generated' }
+
       - name: Packaged self-test
         shell: powershell
         run: |
@@ -124,6 +131,7 @@ jobs:
           if ($p.ExitCode -ne 0 -or -not (Test-Path $selfTest)) { throw 'Packaged self-test failed' }
           $data = Get-Content $selfTest -Raw | ConvertFrom-Json
           if (-not $data.ok -or $data.version -ne '2.4.10') { throw 'Wrong packaged version or self-test failure' }
+
       - name: Pack NSIS setup
         shell: powershell
         run: |
@@ -134,6 +142,7 @@ jobs:
           if (-not $setup) { throw 'Setup missing' }
           Copy-Item $setup.FullName 'release/Desktop-Imposer-Pro-V2.4.10-Setup-x64.exe' -Force
           Get-FileHash 'release/Desktop-Imposer-Pro-V2.4.10-Setup-x64.exe' -Algorithm SHA256 | Format-List | Out-File 'release/SHA256.txt'
+
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
@@ -143,6 +152,7 @@ jobs:
             ${{ env.APP_ROOT }}/release/SHA256.txt
           if-no-files-found: error
           retention-days: 30
+
       - name: Upload portable
         uses: actions/upload-artifact@v4
         with:

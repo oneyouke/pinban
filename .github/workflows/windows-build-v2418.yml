@@ -50,7 +50,7 @@ jobs:
             'patches/apply_v242.py','patches/apply_v243.py','patches/apply_v244.py','patches/apply_v245.py',
             'patches/apply_v246.py','patches/apply_v247.py','patches/apply_v248.py','patches/apply_v249.py',
             'patches/apply_v2410.py','patches/apply_v2411.py','patches/apply_v2412.py','patches/apply_v2413.py',
-            'patches/apply_v2414.py','patches/apply_v2415.py','patches/apply_v2416.py','patches/apply_v2418.py'
+            'patches/apply_v2414.py','patches/apply_v2415.py','patches/apply_v2416.py','patches/apply_v2417.py','patches/apply_v2418.py'
           )
           foreach ($patch in $patches) { & python -B $patch; if ($LASTEXITCODE -ne 0) { throw "Patch failed: $patch" } }
           $version = python -B -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_VERSION)"

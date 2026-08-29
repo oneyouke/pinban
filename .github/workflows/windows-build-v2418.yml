@@ -82,7 +82,7 @@ jobs:
             @('-B','test_v244_marks.py'),@('-B','test_v245_production_gate.py'),@('-B','test_v246_workspace.py'),@('-B','test_v247_optimizer.py'),
             @('-B','test_v248_resources.py'),@('-B','test_v249_production.py'),@('-B','test_v2410_quote.py'),@('-B','test_v2411_templates.py'),
             @('-B','test_v2412_batch_queue.py'),@('-B','test_v2413_batch_executor.py'),@('-B','test_v2414_layout_contract.py'),
-            @('-B','test_v2415_layout_diagnostics.py'),@('-B','test_v2416_production_safety.py'),@('-B','test_v2418_legacy_dict.py'),
+            @('-B','test_v2415_layout_diagnostics.py'),@('-B','test_v2416_production_safety.py'),@('-B','test_v2417_legacy_dict.py'),@('-B','test_v2418_legacy_dict_contract.py'),
             @('-B','test_engine.py'),@('-B','test_export_v233.py'),@('-B','install_smoke_test.py')
           )
           foreach ($argsList in $commands) { & python @argsList; if ($LASTEXITCODE -ne 0) { throw "Python test failed: $($argsList -join ' ')" } }

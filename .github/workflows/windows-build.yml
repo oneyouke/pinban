@@ -87,6 +87,17 @@ jobs:
           $center = Get-Content (Join-Path $env:APP_ROOT 'prepress_center.py') -Raw
           if ($center -notmatch 'class RulerWidget') { throw 'RulerWidget source was not added' }
 
+      - name: Apply V2.3.2 enhanced preflight patch
+        shell: powershell
+        run: |
+          python -B patches/apply_v232.py
+          Remove-Item -Recurse -Force (Join-Path $env:APP_ROOT '__pycache__') -ErrorAction SilentlyContinue
+          $version = python -B -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_VERSION)"
+          if ($version.Trim() -ne '2.3.2') { throw "V2.3.2 patch did not apply: $version" }
+          $center = Get-Content (Join-Path $env:APP_ROOT 'prepress_center.py') -Raw
+          if ($center -notmatch '智能印前检查') { throw 'Enhanced preflight UI was not added' }
+          if (-not (Test-Path (Join-Path $env:APP_ROOT 'enhanced_preflight.py'))) { throw 'enhanced_preflight.py missing' }
+
       - name: Install build dependencies
         shell: powershell
         run: |
@@ -109,7 +120,7 @@ jobs:
         run: |
           Set-Location $env:APP_ROOT
           python -B -m compileall -q .
-          python -B -c "import prepress_center; assert hasattr(prepress_center, 'RulerWidget')"
+          python -B -c "import prepress_center; assert hasattr(prepress_center, 'RulerWidget'); import enhanced_preflight; assert hasattr(enhanced_preflight, 'scan_pdf')"
           python -B test_engine.py
           python -B install_smoke_test.py
 
@@ -153,7 +164,7 @@ jobs:
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: Desktop-Imposer-Pro-V2.3.1-Windows-x64
+          name: Desktop-Imposer-Pro-V2.3.2-Windows-x64
           path: |
             ${{ env.APP_ROOT }}/release/Desktop-Imposer-Pro-Setup-x64.exe
             ${{ env.APP_ROOT }}/release/SHA256.txt
@@ -163,7 +174,7 @@ jobs:
       - name: Upload portable application
         uses: actions/upload-artifact@v4
         with:
-          name: Desktop-Imposer-Pro-V2.3.1-Portable-x64
+          name: Desktop-Imposer-Pro-V2.3.2-Portable-x64
           path: ${{ env.APP_ROOT }}/dist/DesktopImposerPro/**
           if-no-files-found: error
           retention-days: 30

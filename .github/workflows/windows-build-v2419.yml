@@ -129,3 +129,5 @@ jobs:
           path: ${{ env.APP_ROOT }}/dist/DesktopImposerPro/**
           if-no-files-found: error
           retention-days: 30
+
+# Package rebuild trigger: 2026-08-29

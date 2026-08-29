@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'patches/apply_v234.py'
+      - 'patches/apply_v235.py'
       - 'patches/full_acceptance_runner.py'
       - '.github/workflows/full-acceptance.yml'
 
@@ -42,9 +43,18 @@ jobs:
           python -B patches/apply_v232.py
           python -B patches/apply_v233.py
           python -B patches/apply_v234.py
+          python -B patches/apply_v235.py
           Remove-Item -Recurse -Force (Join-Path $root '__pycache__') -ErrorAction SilentlyContinue
           $version = python -B -c "import sys; sys.path.insert(0, r'$root'); import product; print(product.APP_VERSION)"
-          if ($version.Trim() -ne '2.3.4') { throw "V2.3.4 patch did not apply: $version" }
+          if ($version.Trim() -ne '2.3.5') { throw "V2.3.5 patch did not apply: $version" }
+
+      - name: Expose backup implementation for Windows handle diagnostics
+        shell: powershell
+        run: |
+          Write-Host '===== backup_restore.py ====='
+          Get-Content (Join-Path $env:APP_ROOT 'backup_restore.py') -Raw
+          Write-Host '===== test_v20.py ====='
+          Get-Content (Join-Path $env:APP_ROOT 'test_v20.py') -Raw
 
       - name: Install build and test dependencies
         shell: powershell
@@ -78,7 +88,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Desktop-Imposer-Pro-V2.3.4-Full-Acceptance-Report
+          name: Desktop-Imposer-Pro-V2.3.5-Full-Acceptance-Report
           path: |
             ${{ env.APP_ROOT }}/release/full-acceptance-report.json
             ${{ env.APP_ROOT }}/release/full-acceptance-report.md

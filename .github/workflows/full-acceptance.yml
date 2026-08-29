@@ -1,0 +1,86 @@
+name: Full Windows Acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'patches/apply_v234.py'
+      - 'patches/full_acceptance_runner.py'
+      - '.github/workflows/full-acceptance.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  full-acceptance:
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: 'x64'
+
+      - name: Restore source and apply release patches
+        shell: powershell
+        run: |
+          $archive = 'source/Desktop-Imposer-Pro-V2.2-Performance.zip'
+          if (-not (Test-Path $archive)) { throw 'Missing source archive' }
+          Expand-Archive -Path $archive -DestinationPath 'build-src' -Force
+          $root = Resolve-Path 'build-src/Desktop-Imposer-Pro-V2.2'
+          "APP_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
+          python -B patches/apply_v221.py
+          python -B patches/apply_v222.py
+          python -B patches/apply_v230.py
+          python -B patches/apply_v231.py
+          python -B patches/apply_v232.py
+          python -B patches/apply_v233.py
+          python -B patches/apply_v234.py
+          Remove-Item -Recurse -Force (Join-Path $root '__pycache__') -ErrorAction SilentlyContinue
+          $version = python -B -c "import sys; sys.path.insert(0, r'$root'); import product; print(product.APP_VERSION)"
+          if ($version.Trim() -ne '2.3.4') { throw "V2.3.4 patch did not apply: $version" }
+
+      - name: Install build and test dependencies
+        shell: powershell
+        run: |
+          Set-Location $env:APP_ROOT
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements-build.txt
+          $path = 'install_smoke_test.py'
+          if (Test-Path $path) {
+            $text = Get-Content $path -Raw
+            $text = $text.Replace('from PySide6.QtCore import QT_VERSION_STR', 'from PySide6.QtCore import QLibraryInfo')
+            $text = $text.Replace('print("Qt", QT_VERSION_STR)', 'print("Qt", QLibraryInfo.version().toString())')
+            Set-Content -Path $path -Value $text -Encoding UTF8
+          }
+
+      - name: Compile entire application
+        shell: powershell
+        run: |
+          Set-Location $env:APP_ROOT
+          python -B -m compileall -q .
+          python -B -c "import prepress_center; assert hasattr(prepress_center, 'RulerWidget'); import enhanced_preflight; assert hasattr(enhanced_preflight, 'scan_pdf')"
+
+      - name: Run full acceptance regression gate
+        shell: powershell
+        run: |
+          Set-Location $env:APP_ROOT
+          $env:QT_QPA_PLATFORM = 'offscreen'
+          python -B test_full_acceptance.py
+
+      - name: Upload full acceptance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Desktop-Imposer-Pro-V2.3.4-Full-Acceptance-Report
+          path: |
+            ${{ env.APP_ROOT }}/release/full-acceptance-report.json
+            ${{ env.APP_ROOT }}/release/full-acceptance-report.md
+          if-no-files-found: warn
+          retention-days: 30

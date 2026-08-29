@@ -37,6 +37,18 @@ jobs:
           Expand-Archive -Path 'source/Desktop-Imposer-Pro-V2.2-Performance.zip' -DestinationPath 'build-src' -Force
           $root = Resolve-Path 'build-src/Desktop-Imposer-Pro-V2.2'
           "APP_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Probe layout override contract from baseline
+        shell: powershell
+        run: |
+          $p = 'build-src/Desktop-Imposer-Pro-V2.2/imposition.py'
+          if (-not (Test-Path $p)) { throw 'imposition.py missing' }
+          Write-Host '===== layout_override contract ====='
+          Select-String -Path $p -Pattern 'layout_override|manual_layout' -Context 45,90 | ForEach-Object {
+            $_.Context.PreContext | ForEach-Object { Write-Host $_ }
+            Write-Host $_.Line
+            $_.Context.PostContext | ForEach-Object { Write-Host $_ }
+            Write-Host '-----'
+          }
       - name: Install patch bootstrap dependencies
         shell: powershell
         run: |

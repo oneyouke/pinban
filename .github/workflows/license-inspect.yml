@@ -1,0 +1,58 @@
+name: Inspect License Implementation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/license-inspect.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-license:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Expand source
+        shell: powershell
+        run: |
+          Expand-Archive -Path 'source/Desktop-Imposer-Pro-V2.2-Performance.zip' -DestinationPath 'build-src' -Force
+          $root = Resolve-Path 'build-src/Desktop-Imposer-Pro-V2.2'
+          "APP_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Print license related sources
+        shell: powershell
+        run: |
+          $root = $env:APP_ROOT
+          $matches = Get-ChildItem $root -Recurse -File -Include *.py | Where-Object {
+            $_.Name -match 'licen|activat' -or (Select-String -Path $_.FullName -Pattern 'Trial|Commercial|fingerprint|license' -Quiet)
+          }
+          foreach ($f in $matches) {
+            Write-Host "===== $($f.FullName.Substring($root.Length + 1)) ====="
+            Get-Content $f.FullName -Raw
+          }
+
+      - name: Collect license sources
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Path license-inspect -Force | Out-Null
+          $root = $env:APP_ROOT
+          $matches = Get-ChildItem $root -Recurse -File -Include *.py | Where-Object {
+            $_.Name -match 'licen|activat' -or (Select-String -Path $_.FullName -Pattern 'Trial|Commercial|fingerprint|license' -Quiet)
+          }
+          foreach ($f in $matches) {
+            Copy-Item $f.FullName (Join-Path 'license-inspect' $f.Name) -Force
+          }
+
+      - name: Upload license sources
+        uses: actions/upload-artifact@v4
+        with:
+          name: Desktop-Imposer-License-Inspect
+          path: license-inspect/**
+          if-no-files-found: error
+          retention-days: 7

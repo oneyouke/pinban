@@ -77,6 +77,15 @@ jobs:
           $name = python -B -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_NAME)"
           if ($name.Trim() -ne 'Desktop Imposer Pro') { throw "Product name is not ASCII-safe: $name" }
 
+      - name: Apply V2.3.1 UI arrow and ruler patch
+        shell: powershell
+        run: |
+          python -B patches/apply_v231.py
+          Remove-Item -Recurse -Force (Join-Path $env:APP_ROOT '__pycache__') -ErrorAction SilentlyContinue
+          $version = python -B -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_VERSION)"
+          if ($version.Trim() -ne '2.3.1') { throw "V2.3.1 patch did not apply: $version" }
+          python -B -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import prepress_center; assert hasattr(prepress_center, 'RulerWidget')"
+
       - name: Install build dependencies
         shell: powershell
         run: |
@@ -142,7 +151,7 @@ jobs:
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: Desktop-Imposer-Pro-V2.3-Windows-x64
+          name: Desktop-Imposer-Pro-V2.3.1-Windows-x64
           path: |
             ${{ env.APP_ROOT }}/release/Desktop-Imposer-Pro-Setup-x64.exe
             ${{ env.APP_ROOT }}/release/SHA256.txt
@@ -152,7 +161,7 @@ jobs:
       - name: Upload portable application
         uses: actions/upload-artifact@v4
         with:
-          name: Desktop-Imposer-Pro-V2.3-Portable-x64
+          name: Desktop-Imposer-Pro-V2.3.1-Portable-x64
           path: ${{ env.APP_ROOT }}/dist/DesktopImposerPro/**
           if-no-files-found: error
           retention-days: 30

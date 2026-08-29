@@ -47,64 +47,29 @@ jobs:
           $root = Resolve-Path 'build-src/Desktop-Imposer-Pro-V2.2'
           "APP_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Apply V2.2.1 UI and import patch
+      - name: Apply release patches through V2.3.6
         shell: powershell
         run: |
           python -B patches/apply_v221.py
-          Remove-Item -Recurse -Force (Join-Path $env:APP_ROOT '__pycache__') -ErrorAction SilentlyContinue
-          $version = python -B -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_VERSION)"
-          if ($version.Trim() -ne '2.2.1') { throw "V2.2.1 patch did not apply: $version" }
-
-      - name: Apply V2.2.2 encoding and imposition patch
-        shell: powershell
-        run: |
           python -B patches/apply_v222.py
-          Remove-Item -Recurse -Force (Join-Path $env:APP_ROOT '__pycache__') -ErrorAction SilentlyContinue
-          $version = python -B -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_VERSION)"
-          if ($version.Trim() -ne '2.2.2') { throw "V2.2.2 patch did not apply: $version" }
-          $bytes = [System.IO.File]::ReadAllBytes((Join-Path $env:APP_ROOT 'EULA_NSIS.txt'))
-          if ($bytes.Length -lt 2 -or $bytes[0] -ne 255 -or $bytes[1] -ne 254) { throw 'EULA_NSIS.txt is not UTF-16LE with BOM' }
-
-      - name: Apply V2.3 prepress and imposition feature patch
-        shell: powershell
-        run: |
           python -B patches/apply_v230.py
-          Remove-Item -Recurse -Force (Join-Path $env:APP_ROOT '__pycache__') -ErrorAction SilentlyContinue
-          $version = python -B -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_VERSION)"
-          if ($version.Trim() -ne '2.3.0') { throw "V2.3 patch did not apply: $version" }
-          $name = python -B -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_NAME)"
-          if ($name.Trim() -ne 'Desktop Imposer Pro') { throw "Product name is not ASCII-safe: $name" }
-
-      - name: Apply V2.3.1 UI arrow and ruler patch
-        shell: powershell
-        run: |
           python -B patches/apply_v231.py
-          Remove-Item -Recurse -Force (Join-Path $env:APP_ROOT '__pycache__') -ErrorAction SilentlyContinue
-          $version = python -B -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_VERSION)"
-          if ($version.Trim() -ne '2.3.1') { throw "V2.3.1 patch did not apply: $version" }
-          $center = Get-Content (Join-Path $env:APP_ROOT 'prepress_center.py') -Raw
-          if ($center -notmatch 'class RulerWidget') { throw 'RulerWidget source was not added' }
-
-      - name: Apply V2.3.2 enhanced preflight patch
-        shell: powershell
-        run: |
           python -B patches/apply_v232.py
-          Remove-Item -Recurse -Force (Join-Path $env:APP_ROOT '__pycache__') -ErrorAction SilentlyContinue
-          $version = python -B -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_VERSION)"
-          if ($version.Trim() -ne '2.3.2') { throw "V2.3.2 patch did not apply: $version" }
-          $center = Get-Content (Join-Path $env:APP_ROOT 'prepress_center.py') -Raw
-          if ($center -notmatch '智能印前检查') { throw 'Enhanced preflight UI was not added' }
-          if (-not (Test-Path (Join-Path $env:APP_ROOT 'enhanced_preflight.py'))) { throw 'enhanced_preflight.py missing' }
-
-      - name: Apply V2.3.3 PDF export reliability patch
-        shell: powershell
-        run: |
           python -B patches/apply_v233.py
+          python -B patches/apply_v234.py
+          python -B patches/apply_v235.py
+          python -B patches/apply_v236.py
           Remove-Item -Recurse -Force (Join-Path $env:APP_ROOT '__pycache__') -ErrorAction SilentlyContinue
+
           $version = python -B -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_VERSION)"
-          if ($version.Trim() -ne '2.3.3') { throw "V2.3.3 patch did not apply: $version" }
+          if ($version.Trim() -ne '2.3.6') { throw "Expected V2.3.6, got $version" }
+
           $service = Get-Content (Join-Path $env:APP_ROOT 'production_service.py') -Raw
-          if ($service -notmatch '_commit_pdf') { throw 'Robust PDF commit helper missing' }
+          if ($service -match 'tmp\.open\("rb"\)') { throw 'Unsafe read-only fsync implementation is still present' }
+          if ($service -notmatch 'tmp\.open\("r\+b"\)') { throw 'V2.3.5 Windows writable fsync fix is missing' }
+
+          $backup = Get-Content (Join-Path $env:APP_ROOT 'backup_restore.py') -Raw
+          if ($backup -notmatch 'dst\.close\(\)' -or $backup -notmatch 'src\.close\(\)') { throw 'V2.3.6 SQLite close fix is missing' }
 
       - name: Install build dependencies
         shell: powershell
@@ -127,7 +92,10 @@ jobs:
         shell: powershell
         run: |
           Set-Location $env:APP_ROOT
+          $env:PYTHONIOENCODING = 'utf-8'
+          $env:PYTHONUTF8 = '1'
           python -B -m compileall -q .
+          python -B -c "import product; assert product.APP_VERSION == '2.3.6', product.APP_VERSION"
           python -B -c "import prepress_center; assert hasattr(prepress_center, 'RulerWidget'); import enhanced_preflight; assert hasattr(enhanced_preflight, 'scan_pdf')"
           python -B test_engine.py
           python -B test_export_v233.py
@@ -163,19 +131,20 @@ jobs:
         run: |
           Set-Location $env:APP_ROOT
           $version = python -B -c "import product; print(product.APP_VERSION)"
+          if ($version.Trim() -ne '2.3.6') { throw "Refusing to package wrong version: $version" }
           & $env:NSIS "/DAPP_VERSION=$version" "/DAPP_PUBLISHER=Desktop Imposer Pro" installer_nsis.nsi
           if ($LASTEXITCODE -ne 0) { throw "NSIS failed with exit code $LASTEXITCODE" }
           $setup = Get-ChildItem 'release/DesktopImposerPro-*-Setup-x64.exe' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           if (-not $setup) { throw 'Setup-x64.exe not generated' }
-          Copy-Item $setup.FullName 'release/Desktop-Imposer-Pro-Setup-x64.exe' -Force
-          Get-FileHash 'release/Desktop-Imposer-Pro-Setup-x64.exe' -Algorithm SHA256 | Format-List | Out-File 'release/SHA256.txt'
+          Copy-Item $setup.FullName 'release/Desktop-Imposer-Pro-V2.3.6-Setup-x64.exe' -Force
+          Get-FileHash 'release/Desktop-Imposer-Pro-V2.3.6-Setup-x64.exe' -Algorithm SHA256 | Format-List | Out-File 'release/SHA256.txt'
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: Desktop-Imposer-Pro-V2.3.3-Windows-x64
+          name: Desktop-Imposer-Pro-V2.3.6-Windows-x64
           path: |
-            ${{ env.APP_ROOT }}/release/Desktop-Imposer-Pro-Setup-x64.exe
+            ${{ env.APP_ROOT }}/release/Desktop-Imposer-Pro-V2.3.6-Setup-x64.exe
             ${{ env.APP_ROOT }}/release/SHA256.txt
           if-no-files-found: error
           retention-days: 30
@@ -183,7 +152,7 @@ jobs:
       - name: Upload portable application
         uses: actions/upload-artifact@v4
         with:
-          name: Desktop-Imposer-Pro-V2.3.3-Portable-x64
+          name: Desktop-Imposer-Pro-V2.3.6-Portable-x64
           path: ${{ env.APP_ROOT }}/dist/DesktopImposerPro/**
           if-no-files-found: error
           retention-days: 30

@@ -56,12 +56,17 @@ jobs:
           )
           foreach ($patch in $patches) { & python -B $patch; if ($LASTEXITCODE -ne 0) { throw "Patch failed: $patch" } }
           $version = python -B -c "import sys; sys.path.insert(0, r'$env:APP_ROOT'); import product; print(product.APP_VERSION)"
+          if ($LASTEXITCODE -ne 0) { throw 'Version probe failed' }
           if ($version.Trim() -ne '2.4.16') { throw "Expected 2.4.16, got $version" }
+          foreach ($required in @('layout_contract.py','layout_diagnostics.py','production_safety.py','batch_executor.py')) {
+            if (-not (Test-Path (Join-Path $env:APP_ROOT $required))) { throw "Required V2.4.16 file missing: $required" }
+          }
       - name: Install dependencies
         shell: powershell
         run: |
           Set-Location $env:APP_ROOT
           python -m pip install --upgrade pip setuptools wheel
+          if ($LASTEXITCODE -ne 0) { throw 'pip bootstrap failed' }
           python -m pip install -r requirements-build.txt
           if ($LASTEXITCODE -ne 0) { throw 'requirements install failed' }
       - name: Patch smoke-test compatibility

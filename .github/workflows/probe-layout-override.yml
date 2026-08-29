@@ -14,47 +14,20 @@ jobs:
   probe:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: Restore source
         shell: powershell
         run: |
           Expand-Archive -Path 'source/Desktop-Imposer-Pro-V2.2-Performance.zip' -DestinationPath 'build-src' -Force
-      - name: Capture layout override contract
-        shell: powershell
-        run: |
-          @'
-          from pathlib import Path
-          root=Path('build-src/Desktop-Imposer-Pro-V2.2')
-          out=[]
-          for name in ('imposition.py','production_service.py'):
-              p=root/name
-              text=p.read_text(encoding='utf-8')
-              lines=text.splitlines()
-              out.append(f'===== {name} =====')
-              hits=[i for i,line in enumerate(lines) if 'layout_override' in line or 'manual_layout' in line]
-              if not hits:
-                  out.append('NO HITS')
-                  continue
-              shown=set()
-              for i in hits:
-                  lo=max(0,i-45); hi=min(len(lines),i+90)
-                  for j in range(lo,hi):
-                      if j not in shown:
-                          out.append(f'{j+1:04d}: {lines[j]}'); shown.add(j)
-                  out.append('-----')
-          Path('layout-override-contract.txt').write_text('\n'.join(out),encoding='utf-8')
-          print('\n'.join(out))
-          '@ | Set-Content -Encoding UTF8 probe_layout.py
-          python -B probe_layout.py
-          if ($LASTEXITCODE -ne 0) { throw 'layout probe failed' }
-          if (-not (Test-Path 'layout-override-contract.txt')) { throw 'probe output missing' }
-      - name: Upload contract
+          New-Item -ItemType Directory -Path 'probe-output' -Force | Out-Null
+          Copy-Item 'build-src/Desktop-Imposer-Pro-V2.2/imposition.py' 'probe-output/imposition.py' -Force
+          Copy-Item 'build-src/Desktop-Imposer-Pro-V2.2/production_service.py' 'probe-output/production_service.py' -Force
+          if (-not (Test-Path 'probe-output/imposition.py')) { throw 'imposition.py missing' }
+      - name: Upload source contract files
         uses: actions/upload-artifact@v4
         with:
-          name: layout-override-contract
-          path: layout-override-contract.txt
+          name: layout-override-source-contract
+          path: probe-output/**
           if-no-files-found: error
           retention-days: 7

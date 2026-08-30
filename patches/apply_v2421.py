@@ -1,8 +1,11 @@
 from pathlib import Path
 import os
+import shutil
 
 
 root = Path(os.environ.get("APP_ROOT", "build-src/Desktop-Imposer-Pro-V2.2")).resolve()
+patch_root = Path(__file__).resolve().parent
+shutil.copy2(patch_root / "test_v2421_main_workspace.py", root / "test_v2421_main_workspace.py")
 
 
 def replace_once(path: Path, old: str, new: str) -> None:

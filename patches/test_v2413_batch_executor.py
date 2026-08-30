@@ -5,6 +5,7 @@ import fitz
 from batch_queue import BatchQueue, run_batch
 from batch_executor import execute_batch_job
 from workspace import save_workspace
+from product import APP_VERSION
 
 with tempfile.TemporaryDirectory(prefix='批量生产执行器_') as td:
     root=Path(td)
@@ -30,7 +31,7 @@ with tempfile.TemporaryDirectory(prefix='批量生产执行器_') as td:
     assert actual.stat().st_size>100
     assert q.jobs[0].result.get('output_sha256')
 
-    # Manual placements must fail closed until exact layout_override bridging exists.
+    # V2.4.13-2.4.18 fail closed; V2.4.19 enables verified legacy manual-layout production.
     bad_ws=root/'手工版位.dipw'
     save_workspace(bad_ws,{
         'schema_version':1,
@@ -40,9 +41,15 @@ with tempfile.TemporaryDirectory(prefix='批量生产执行器_') as td:
         },
         'print_marks':{},
     })
-    q2=BatchQueue(); q2.add(str(bad_ws),str(root/'bad.pdf'),'手工版位')
+    q2=BatchQueue(); q2.add(str(bad_ws),str(root/'manual.pdf'),'手工版位')
     summary2=run_batch(q2,execute_batch_job)
-    assert summary2['failed']==1
-    assert '手工版位' in q2.jobs[0].error
+    version=tuple(int(x) for x in APP_VERSION.split('.')[:3])
+    if version >= (2,4,19):
+        assert summary2['success']==1, q2.jobs[0].error
+        manual_output=Path(q2.jobs[0].result['output'])
+        assert manual_output.exists() and manual_output.stat().st_size>100
+    else:
+        assert summary2['failed']==1
+        assert '手工版位' in q2.jobs[0].error
 
 print('V2.4.13 BATCH EXECUTOR PASS')

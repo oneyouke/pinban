@@ -1,0 +1,47 @@
+name: Print Category P0 Acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'patches/print_category_p0_acceptance.py'
+      - '.github/workflows/print-category-p0-acceptance.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  category-p0:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12', architecture: 'x64'}
+      - name: Restore V2.4.22 source
+        shell: powershell
+        run: |
+          Expand-Archive -Path 'source/Desktop-Imposer-Pro-V2.2-Performance.zip' -DestinationPath 'build-src' -Force
+          $root=Resolve-Path 'build-src/Desktop-Imposer-Pro-V2.2';"APP_ROOT=$root"|Out-File -FilePath $env:GITHUB_ENV -Append
+          python -m pip install --disable-pip-version-check cryptography
+          $patches=@('apply_v221.py','apply_v222.py','apply_v230.py','apply_v231.py','apply_v232.py','apply_v233.py','apply_v234.py','apply_v235.py','apply_v236.py','apply_v237.py','apply_v240.py','apply_v241.py','apply_v242.py','apply_v243.py','apply_v244.py','apply_v245.py','apply_v246.py','apply_v247.py','apply_v248.py','apply_v249.py','apply_v2410.py','apply_v2411.py','apply_v2412.py','apply_v2413.py','apply_v2414.py','apply_v2415.py','apply_v2416.py','apply_v2417.py','apply_v2418.py','apply_v2419.py','apply_v2420.py','apply_v2421.py','apply_v2422.py')
+          foreach($name in $patches){& python -B "patches/$name";if($LASTEXITCODE -ne 0){throw "Patch failed: $name"}}
+          Copy-Item 'patches/print_category_p0_acceptance.py' "$env:APP_ROOT/print_category_p0_acceptance.py"
+      - name: Install runtime dependencies
+        shell: powershell
+        run: |
+          Set-Location $env:APP_ROOT
+          python -m pip install -r requirements.txt
+      - name: Execute seven-category P0 acceptance
+        shell: powershell
+        run: |
+          Set-Location $env:APP_ROOT
+          $env:PYTHONIOENCODING='utf-8';$env:PYTHONUTF8='1';$env:QT_QPA_PLATFORM='offscreen'
+          python -B print_category_p0_acceptance.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: V2.4.22-Print-Category-P0-Report
+          path: ${{ env.APP_ROOT }}/acceptance-output/**
+          if-no-files-found: error
+          retention-days: 30

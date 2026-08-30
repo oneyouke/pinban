@@ -130,4 +130,4 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-# Package rebuild trigger: 2026-08-29
+# Fresh public-repository Windows build trigger: 2026-08-30

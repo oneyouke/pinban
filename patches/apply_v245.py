@@ -8,6 +8,15 @@ patch_root = Path(__file__).resolve().parent
 shutil.copy2(patch_root / 'production_gate_v245.py', root / 'production_gate.py')
 shutil.copy2(patch_root / 'test_v245_production_gate.py', root / 'test_v245_production_gate.py')
 
+# PyMuPDF provides the production PDF drawing backend imported as "fitz".
+requirements = root / 'requirements.txt'
+requirements_text = requirements.read_text(encoding='utf-8')
+if not any(line.strip().lower().startswith(('pymupdf', 'fitz')) for line in requirements_text.splitlines()):
+    if requirements_text and not requirements_text.endswith('\n'):
+        requirements_text += '\n'
+    requirements_text += 'PyMuPDF>=1.24,<2\n'
+    requirements.write_text(requirements_text, encoding='utf-8')
+
 p = root / 'production_service.py'
 s = p.read_text(encoding='utf-8')
 

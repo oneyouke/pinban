@@ -27,7 +27,8 @@ jobs:
           python -m pip install --disable-pip-version-check cryptography
           $patches=@('apply_v221.py','apply_v222.py','apply_v230.py','apply_v231.py','apply_v232.py','apply_v233.py','apply_v234.py','apply_v235.py','apply_v236.py','apply_v237.py','apply_v240.py','apply_v241.py','apply_v242.py','apply_v243.py','apply_v244.py','apply_v245.py','apply_v246.py','apply_v247.py','apply_v248.py','apply_v249.py','apply_v2410.py','apply_v2411.py','apply_v2412.py','apply_v2413.py','apply_v2414.py','apply_v2415.py','apply_v2416.py','apply_v2417.py','apply_v2418.py','apply_v2419.py','apply_v2420.py','apply_v2421.py','apply_v2422.py')
           foreach($name in $patches){& python -B "patches/$name";if($LASTEXITCODE -ne 0){throw "Patch failed: $name"}}
-          Copy-Item 'patches/print_category_p0_acceptance.py' "$env:APP_ROOT/print_category_p0_acceptance.py"
+          $target=Join-Path $env:APP_ROOT 'print_category_p0_acceptance.py'
+          Copy-Item 'patches/print_category_p0_acceptance.py' $target -Force
       - name: Install runtime dependencies
         shell: powershell
         run: |

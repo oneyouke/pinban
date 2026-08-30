@@ -10,6 +10,21 @@ from pypdf.generic import ContentStream
 PT_PER_MM = 72.0 / 25.4
 
 
+BASE14_FONTS = {
+    "Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique",
+    "Helvetica", "Helvetica-Bold", "Helvetica-Oblique", "Helvetica-BoldOblique",
+    "Times-Roman", "Times-Bold", "Times-Italic", "Times-BoldItalic",
+    "Symbol", "ZapfDingbats",
+}
+
+
+def _is_base14_font(name: str) -> bool:
+    clean = str(name or "").lstrip("/")
+    if "+" in clean:
+        clean = clean.split("+", 1)[1]
+    return clean in BASE14_FONTS
+
+
 @dataclass
 class PreflightIssue:
     severity: str
@@ -217,7 +232,15 @@ def scan_pdf(path: str | Path, *, min_dpi: float = 250.0, min_bleed_mm: float = 
             stats["fonts_checked"] += 1
             if not _font_embedded(font_ref):
                 stats["fonts_unembedded"] += 1
-                issues.append(PreflightIssue("error", "字体", f"字体 {base} 未检测到嵌入字库", idx, "建议回源文件嵌入字体或转曲；不要在生产端随意替换字体。"))
+                if _is_base14_font(base):
+                    issues.append(PreflightIssue(
+                        "warning", "字体",
+                        f"Base-14 标准字体 {base} 未嵌入；PDF 阅读器可替代，但建议生产文件嵌入以固定字形",
+                        idx,
+                        "正式印刷建议嵌入字体或转曲；Base-14 字体不作为阻止性错误。",
+                    ))
+                else:
+                    issues.append(PreflightIssue("error", "字体", f"字体 {base} 未检测到嵌入字库", idx, "建议回源文件嵌入字体或转曲；不要在生产端随意替换字体。"))
 
         color_names = _color_names(resources.get("/ColorSpace"))
         xobjects = _obj(resources.get("/XObject")) or {}

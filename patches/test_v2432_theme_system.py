@@ -22,5 +22,5 @@ for theme_id in THEMES:
     assert window.professional_workspace.single_page.styleSheet() == workspace_style(theme_id)
     assert window.theme_actions[theme_id].isChecked()
     assert not window.grab().isNull()
-window.close()
+window.hide(); window.deleteLater(); app.processEvents()
 print("V2.4.32 MULTI THEME SYSTEM PASS")

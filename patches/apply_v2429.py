@@ -81,7 +81,6 @@ old = '''    def _build_command_bar(self):
             ("删除版位", QStyle.SP_DialogDiscardButton, self.canvas.delete_selected),
             ("印前检查", QStyle.SP_DialogApplyButton, self._run_host_preflight),
             ("导出生产 PDF", QStyle.SP_DialogSaveButton, self._export_host_pdf),
-            ("切叠式 PDF", QStyle.SP_FileDialogListView, self._export_cut_stack_pdf),
             ("经典参数", QStyle.SP_FileDialogDetailedView, self._show_legacy_workspace),
         ]
         for text, icon, fn in commands: layout.addWidget(self._command(text, icon, fn))

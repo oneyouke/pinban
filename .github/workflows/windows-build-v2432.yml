@@ -22,18 +22,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: '3.12', architecture: 'x64'}
-      - name: Install NSIS
-        shell: powershell
-        run: |
-          for($attempt=1;$attempt -le 4;$attempt++){
-            choco install nsis -y --no-progress
-            if($LASTEXITCODE -eq 0){break}
-            if($attempt -eq 4){throw 'Chocolatey NSIS installation failed after retries'}
-            Start-Sleep -Seconds (15*$attempt)
-          }
-          $nsis=@("$env:ProgramFiles\NSIS\makensis.exe","${env:ProgramFiles(x86)}\NSIS\makensis.exe")|Where-Object{Test-Path $_}|Select-Object -First 1
-          if(-not $nsis){throw 'NSIS not found'}
-          "NSIS=$nsis"|Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Restore source
         shell: powershell
         run: |
@@ -94,7 +82,15 @@ jobs:
       - name: Pack NSIS setup
         shell: powershell
         run: |
-          Set-Location $env:APP_ROOT;& $env:NSIS "/DAPP_VERSION=2.4.32" "/DAPP_PUBLISHER=云游客科技" installer_nsis.nsi
+          for($attempt=1;$attempt -le 5;$attempt++){
+            choco install nsis -y --no-progress
+            if($LASTEXITCODE -eq 0){break}
+            if($attempt -eq 5){throw 'Chocolatey NSIS installation failed after retries'}
+            Start-Sleep -Seconds (20*$attempt)
+          }
+          $nsis=@("$env:ProgramFiles\NSIS\makensis.exe","${env:ProgramFiles(x86)}\NSIS\makensis.exe")|Where-Object{Test-Path $_}|Select-Object -First 1
+          if(-not $nsis){throw 'NSIS not found'}
+          Set-Location $env:APP_ROOT;& $nsis "/DAPP_VERSION=2.4.32" "/DAPP_PUBLISHER=云游客科技" installer_nsis.nsi
           if($LASTEXITCODE -ne 0){throw 'NSIS failed'}
           $setup=Get-ChildItem 'release/DesktopImposerPro-*-Setup-x64.exe'|Sort-Object LastWriteTime -Descending|Select-Object -First 1
           Copy-Item $setup.FullName 'release/Desktop-Imposer-Pro-V2.4.32-Setup-x64.exe' -Force
@@ -113,4 +109,3 @@ jobs:
           path: ${{ env.APP_ROOT }}/dist/DesktopImposerPro/**
           if-no-files-found: error
           retention-days: 30
-

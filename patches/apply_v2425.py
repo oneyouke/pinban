@@ -11,11 +11,6 @@ addition="from cut_stack import export_cut_stack_pdf\n"
 if addition not in text:
     if marker not in text: raise SystemExit("V2.4.20 professional canvas import marker missing")
     text=text.replace(marker,addition+marker,1)
-old='            ("导出生产 PDF", QStyle.SP_DialogSaveButton, self._export_host_pdf),\n'
-new='            ("导出生产 PDF", QStyle.SP_DialogSaveButton, self._export_host_pdf),\n            ("切叠式 PDF", QStyle.SP_FileDialogListView, self._export_cut_stack_pdf),\n'
-if new not in text:
-    if old not in text: raise SystemExit("V2.4.20 command bar marker missing")
-    text=text.replace(old,new,1)
 old='''        self.mix_status = QLabel("混拼队列：0 项"); self.mix_status.setObjectName("MixStatus"); self.mix_status.setWordWrap(True)
         layout.addWidget(self.mix_status)
 '''

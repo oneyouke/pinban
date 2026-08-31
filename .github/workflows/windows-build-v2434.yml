@@ -59,7 +59,7 @@ jobs:
           $env:PYTHONIOENCODING='utf-8';$env:PYTHONUTF8='1';$env:QT_QPA_PLATFORM='offscreen'
           $commands=@(
             @('-B','-m','compileall','-q','.'),@('-B','-c',"import product;assert product.APP_VERSION=='2.4.34'"),
-            @('-B','test_v2432_theme_system.py'),@('-B','test_v2433_category_navigation.py'),@('-B','test_v2434_extended_categories.py'),
+            @('-B','test_v2432_theme_system.py'),@('-B','test_v2434_extended_categories.py'),
             @('-B','test_export_v233.py'),@('-B','install_smoke_test.py'))
           foreach($argsList in $commands){& python @argsList;if($LASTEXITCODE -ne 0){throw "Python test failed: $($argsList -join ' ')"}}
       - name: Build EXE

@@ -25,7 +25,12 @@ jobs:
       - name: Install NSIS
         shell: powershell
         run: |
-          choco install nsis -y --no-progress
+          for($attempt=1;$attempt -le 4;$attempt++){
+            choco install nsis -y --no-progress
+            if($LASTEXITCODE -eq 0){break}
+            if($attempt -eq 4){throw 'Chocolatey NSIS installation failed after retries'}
+            Start-Sleep -Seconds (15*$attempt)
+          }
           $nsis=@("$env:ProgramFiles\NSIS\makensis.exe","${env:ProgramFiles(x86)}\NSIS\makensis.exe")|Where-Object{Test-Path $_}|Select-Object -First 1
           if(-not $nsis){throw 'NSIS not found'}
           "NSIS=$nsis"|Out-File -FilePath $env:GITHUB_ENV -Append
@@ -108,5 +113,4 @@ jobs:
           path: ${{ env.APP_ROOT }}/dist/DesktopImposerPro/**
           if-no-files-found: error
           retention-days: 30
-
 

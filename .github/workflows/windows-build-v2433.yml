@@ -1,0 +1,108 @@
+name: Build Windows V2.4.33
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'source/**'
+      - 'patches/apply_v2433.py'
+      - 'patches/test_v2433_category_navigation.py'
+      - '.github/workflows/windows-build-v2433.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows-v2433:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12', architecture: 'x64'}
+      - name: Restore source
+        shell: powershell
+        run: |
+          Expand-Archive -Path 'source/Desktop-Imposer-Pro-V2.2-Performance.zip' -DestinationPath 'build-src' -Force
+          $root=Resolve-Path 'build-src/Desktop-Imposer-Pro-V2.2'; "APP_ROOT=$root"|Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Bootstrap patch dependency
+        shell: powershell
+        run: python -m pip install --disable-pip-version-check cryptography
+      - name: Apply patches through V2.4.33
+        shell: powershell
+        run: |
+          $patches=@(
+            'patches/apply_v221.py','patches/apply_v222.py','patches/apply_v230.py','patches/apply_v231.py','patches/apply_v232.py','patches/apply_v233.py','patches/apply_v234.py','patches/apply_v235.py','patches/apply_v236.py','patches/apply_v237.py',
+            'patches/apply_v240.py','patches/apply_v241.py','patches/apply_v242.py','patches/apply_v243.py','patches/apply_v244.py','patches/apply_v245.py','patches/apply_v246.py','patches/apply_v247.py','patches/apply_v248.py','patches/apply_v249.py',
+            'patches/apply_v2410.py','patches/apply_v2411.py','patches/apply_v2412.py','patches/apply_v2413.py','patches/apply_v2414.py','patches/apply_v2415.py','patches/apply_v2416.py','patches/apply_v2417.py','patches/apply_v2418.py','patches/apply_v2419.py','patches/apply_v2420.py','patches/apply_v2421.py','patches/apply_v2422.py','patches/apply_v2423.py','patches/apply_v2424.py','patches/apply_v2425.py','patches/apply_v2426.py','patches/apply_v2427.py','patches/apply_v2428.py','patches/apply_v2429.py','patches/apply_v2430.py','patches/apply_v2431.py','patches/apply_v2432.py','patches/apply_v2433.py')
+          foreach($patch in $patches){& python -B $patch;if($LASTEXITCODE -ne 0){throw "Patch failed: $patch"}}
+          $version=python -B -c "import sys;sys.path.insert(0,r'$env:APP_ROOT');import product;print(product.APP_VERSION)"
+          if($version.Trim() -ne '2.4.33'){throw "Expected 2.4.33, got $version"}
+      - name: Install dependencies
+        shell: powershell
+        run: |
+          Set-Location $env:APP_ROOT
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements-build.txt
+      - name: Patch smoke-test compatibility
+        shell: powershell
+        run: |
+          Set-Location $env:APP_ROOT
+          $path='install_smoke_test.py';$text=Get-Content $path -Raw
+          $text=$text.Replace('from PySide6.QtCore import QT_VERSION_STR','from PySide6.QtCore import QLibraryInfo').Replace('print("Qt", QT_VERSION_STR)','print("Qt", QLibraryInfo.version().toString())')
+          Set-Content -Path $path -Value $text -Encoding UTF8
+      - name: Regression and production mode tests
+        shell: powershell
+        run: |
+          Set-Location $env:APP_ROOT
+          $env:PYTHONIOENCODING='utf-8';$env:PYTHONUTF8='1';$env:QT_QPA_PLATFORM='offscreen'
+          $commands=@(
+            @('-B','-m','compileall','-q','.'),@('-B','-c',"import product;assert product.APP_VERSION=='2.4.33'"),
+            @('-B','test_v2432_theme_system.py'),@('-B','test_v2433_category_navigation.py'),
+            @('-B','test_export_v233.py'),@('-B','install_smoke_test.py'))
+          foreach($argsList in $commands){& python @argsList;if($LASTEXITCODE -ne 0){throw "Python test failed: $($argsList -join ' ')"}}
+      - name: Build EXE
+        shell: powershell
+        run: |
+          Set-Location $env:APP_ROOT;Remove-Item -Recurse -Force build,dist,release -ErrorAction SilentlyContinue;New-Item -ItemType Directory -Path release -Force|Out-Null
+          python -B -m PyInstaller --noconfirm --clean DesktopImposer.spec
+          if($LASTEXITCODE -ne 0 -or -not(Test-Path 'dist/DesktopImposerPro/DesktopImposerPro.exe')){throw 'EXE not generated'}
+      - name: Packaged self-test
+        shell: powershell
+        run: |
+          Set-Location $env:APP_ROOT;$exe=Resolve-Path 'dist/DesktopImposerPro/DesktopImposerPro.exe';$selfTest=Join-Path $env:TEMP 'desktop-imposer-selftest-v2433.json'
+          Remove-Item $selfTest -ErrorAction SilentlyContinue;$env:QT_QPA_PLATFORM='offscreen';$env:DESKTOP_IMPOSER_SELFTEST_FILE=$selfTest
+          $p=Start-Process -FilePath $exe -ArgumentList '--packaging-self-test' -Wait -PassThru
+          if($p.ExitCode -ne 0 -or -not(Test-Path $selfTest)){throw 'Packaged self-test failed'}
+          $data=Get-Content $selfTest -Raw|ConvertFrom-Json;if(-not $data.ok -or $data.version -ne '2.4.33'){throw 'Wrong packaged version'}
+      - name: Pack NSIS setup
+        shell: powershell
+        run: |
+          for($attempt=1;$attempt -le 5;$attempt++){
+            choco install nsis -y --no-progress
+            if($LASTEXITCODE -eq 0){break}
+            if($attempt -eq 5){throw 'Chocolatey NSIS installation failed after retries'}
+            Start-Sleep -Seconds (20*$attempt)
+          }
+          $nsis=@("$env:ProgramFiles\NSIS\makensis.exe","${env:ProgramFiles(x86)}\NSIS\makensis.exe")|Where-Object{Test-Path $_}|Select-Object -First 1
+          if(-not $nsis){throw 'NSIS not found'}
+          Set-Location $env:APP_ROOT;& $nsis "/DAPP_VERSION=2.4.33" "/DAPP_PUBLISHER=云游客科技" installer_nsis.nsi
+          if($LASTEXITCODE -ne 0){throw 'NSIS failed'}
+          $setup=Get-ChildItem 'release/DesktopImposerPro-*-Setup-x64.exe'|Sort-Object LastWriteTime -Descending|Select-Object -First 1
+          Copy-Item $setup.FullName 'release/Desktop-Imposer-Pro-V2.4.33-Setup-x64.exe' -Force
+          Get-FileHash 'release/Desktop-Imposer-Pro-V2.4.33-Setup-x64.exe' -Algorithm SHA256|Format-List|Out-File 'release/SHA256.txt'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Desktop-Imposer-Pro-V2.4.33-Windows-x64
+          path: |
+            ${{ env.APP_ROOT }}/release/Desktop-Imposer-Pro-V2.4.33-Setup-x64.exe
+            ${{ env.APP_ROOT }}/release/SHA256.txt
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Desktop-Imposer-Pro-V2.4.33-Portable-x64
+          path: ${{ env.APP_ROOT }}/dist/DesktopImposerPro/**
+          if-no-files-found: error
+          retention-days: 30

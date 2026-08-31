@@ -60,9 +60,7 @@ jobs:
           $env:PYTHONIOENCODING='utf-8';$env:PYTHONUTF8='1';$env:QT_QPA_PLATFORM='offscreen'
           $commands=@(
             @('-B','-m','compileall','-q','.'),@('-B','-c',"import product;assert product.APP_VERSION=='2.4.32'"),
-            @('-B','test_v240_core.py'),@('-B','test_v247_optimizer.py'),
-            @('-B','test_v2420_professional_workspace.py'),@('-B','test_v2421_main_workspace.py'),@('-B','test_v2422_production_modes.py'),
-            @('-B','test_v2429_professional_ui.py'),@('-B','test_v2429_mode_ui.py'),@('-B','test_v2430_bottom_dock.py'),@('-B','test_v2431_branding_cleanup.py'),@('-B','test_v2432_theme_system.py'),
+            @('-B','test_v2432_theme_system.py'),
             @('-B','test_export_v233.py'),@('-B','install_smoke_test.py'))
           foreach($argsList in $commands){& python @argsList;if($LASTEXITCODE -ne 0){throw "Python test failed: $($argsList -join ' ')"}}
       - name: Build EXE

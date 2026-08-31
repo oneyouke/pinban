@@ -40,7 +40,9 @@ new='''    def _select_special_source(self):
     def _apply_special_preset(self, *_):
         defaults = get_special_preset_defaults(self.special_preset.currentData())
         self.special_width.setValue(defaults["width_mm"]); self.special_height.setValue(defaults["height_mm"])
-        self.special_parts.setValue(max(2, defaults["parts"])); self.special_summary.setText(defaults["description"])
+        is_ncr = self.special_preset.currentData() == "ncr"
+        self.special_parts.setEnabled(is_ncr); self.special_parts.setValue(defaults["parts"] if is_ncr else 3)
+        self.special_summary.setText(defaults["description"])
 
     def _export_special_template_pdf(self):
         path, _ = QFileDialog.getSaveFileName(self, "导出特种工艺模板 PDF", f"{self.special_preset.currentText()}模板.pdf", "PDF (*.pdf)")

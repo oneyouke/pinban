@@ -42,6 +42,13 @@ jobs:
           Set-Location $env:APP_ROOT
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install -r requirements-build.txt
+      - name: Patch PySide6 6.11 smoke-test compatibility
+        shell: powershell
+        run: |
+          Set-Location $env:APP_ROOT
+          $path='install_smoke_test.py';$text=Get-Content $path -Raw
+          $text=$text.Replace('from PySide6.QtCore import QT_VERSION_STR','from PySide6.QtCore import QLibraryInfo').Replace('print("Qt", QT_VERSION_STR)','print("Qt", QLibraryInfo.version().toString())')
+          Set-Content -Path $path -Value $text -Encoding UTF8
       - name: Regression and commercial release gate
         shell: powershell
         run: |

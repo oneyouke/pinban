@@ -247,6 +247,7 @@ class MainWindow(QMainWindow):
         self.control_tabs.addTab(self._appearance_panel(), "外观")
         self.control_dock.setWidget(self.control_tabs)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.control_dock)
+        self.splitDockWidget(self.nav_dock, self.control_dock, Qt.Horizontal)
         self.control_dock.setMinimumWidth(270)
 
     def _field(self, label, widget):
